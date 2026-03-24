@@ -8,57 +8,46 @@
 import SwiftUI
 import CoreML
 import Vision
-import AVFoundation
 
 @Observable
-class VisionManager: NSObject {
-    var detectedObject: String = "Point the camera at an object..."
-    let captureSession = AVCaptureSession()
+class VisionManager {
+    var detectedObject: String?
+    var isAnalyzing = false
     
-    func analyseObject(image: CIImage) {
-        guard let model = try? VNCoreMLModel(for: MobileNetV2(configuration: MLModelConfiguration()).model) else {
-            print("Error: Model could not be loaded.")
+    func analyseObject(image: UIImage) {
+        guard let ciImage = CIImage(image: image) else {
+            print("Error: Could not convert UIImage to CIImage.")
             return
         }
         
-        let request = VNCoreMLRequest(model: model) { request, error in
-            guard let results = request.results as? [VNClassificationObservation],
-                  let topResult = results.first else {
+        isAnalyzing = true
+        
+        DispatchQueue.global(qos: .userInitiated).async {
+            guard let model = try? VNCoreMLModel(for: MobileNetV2(configuration: MLModelConfiguration()).model) else {
+                print("Error: Model could not be loaded.")
+                DispatchQueue.main.async { self.isAnalyzing = false }
                 return
             }
             
-            let identifier = topResult.identifier
-            DispatchQueue.main.async {
-                self.detectedObject = identifier
+            let request = VNCoreMLRequest(model: model) { request, error in
+                guard let results = request.results as? [VNClassificationObservation],
+                      let topResult = results.first else {
+                    DispatchQueue.main.async { self.isAnalyzing = false }
+                    return
+                }
+                
+                // Take only the first label (before any comma)
+                let identifier = topResult.identifier
+                    .components(separatedBy: ",").first?
+                    .trimmingCharacters(in: .whitespaces) ?? topResult.identifier
+                DispatchQueue.main.async {
+                    self.detectedObject = identifier
+                    self.isAnalyzing = false
+                }
             }
+            
+            let handler = VNImageRequestHandler(ciImage: ciImage)
+            try? handler.perform([request])
         }
-        
-        let handler = VNImageRequestHandler(ciImage: image)
-        try? handler.perform([request])
-    }
-    
-    func setupCamera() {
-        guard let device = AVCaptureDevice.default(for: .video) else { return }
-        guard let input = try? AVCaptureDeviceInput(device: device) else { return }
-        
-        let videoOutput = AVCaptureVideoDataOutput()
-        videoOutput.setSampleBufferDelegate(self, queue: DispatchQueue(label: "videoQueue"))
-        
-        if captureSession.canAddInput(input) {
-            captureSession.addInput(input)
-        }
-        
-        if captureSession.canAddOutput(videoOutput) {
-            captureSession.addOutput(videoOutput)
-        }
-    }
-}
-
-extension VisionManager: AVCaptureVideoDataOutputSampleBufferDelegate {
-    func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
-        guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
-        let ciImage = CIImage(cvPixelBuffer: pixelBuffer)
-        
-        analyseObject(image: ciImage)
     }
 }
