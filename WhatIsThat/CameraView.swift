@@ -6,25 +6,42 @@
 //
 
 import SwiftUI
-import AVFoundation
+import UIKit
 
-struct CameraView: UIViewRepresentable {
-
-    var session: AVCaptureSession
+struct CameraView: UIViewControllerRepresentable {
     
-    func makeUIView(context: Context) -> UIView {
-        let view = UIView(frame: .zero)
-        let previewLayer = AVCaptureVideoPreviewLayer(session: session)
-        
-        previewLayer.videoGravity = .resizeAspectFill
-        view.layer.addSublayer(previewLayer)
-        
-        return view
+    @Binding var capturedImage: UIImage?
+    @Environment(\.dismiss) private var dismiss
+    
+    func makeUIViewController(context: Context) -> UIImagePickerController {
+        let picker = UIImagePickerController()
+        picker.sourceType = .camera
+        picker.delegate = context.coordinator
+        return picker
     }
     
-    func updateUIView(_ uiView: UIView, context: Context) {
-        if let previewLayer = uiView.layer.sublayers?.first as? AVCaptureVideoPreviewLayer {
-            previewLayer.frame = uiView.bounds
+    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+    
+    class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
+        let parent: CameraView
+        
+        init(_ parent: CameraView) {
+            self.parent = parent
+        }
+        
+        func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]) {
+            if let image = info[.originalImage] as? UIImage {
+                parent.capturedImage = image
+            }
+            parent.dismiss()
+        }
+        
+        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+            parent.dismiss()
         }
     }
 }

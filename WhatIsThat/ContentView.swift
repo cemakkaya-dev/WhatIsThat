@@ -6,38 +6,43 @@
 //
 
 import SwiftUI
-import AVFoundation
 
 struct ContentView: View {
     
-    @State private var visionManager = VisionManager()
+    @State private var capturedImage: UIImage?
+    @State private var showCamera = false
     
     var body: some View {
-        ZStack {
-            
-            CameraView(session: visionManager.captureSession)
+        NavigationStack {
             VStack {
-                
-                Spacer()
-                
-                VStack(spacing: 15) {
-                    Text(visionManager.detectedObject)
-                        .font(.title2)
-                        .fontWeight(.bold)
-                        .multilineTextAlignment(.center)
+                if let capturedImage {
+                    Image(uiImage: capturedImage)
+                        .resizable()
+                        .scaledToFit()
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .padding()
+                } else {
+                    ContentUnavailableView(
+                        "No Photo",
+                        systemImage: "photo",
+                        description: Text("Tap the camera button to take a photo.")
+                    )
                 }
-                .frame(maxWidth: .infinity)
-                .padding(30)
-                .background(.ultraThinMaterial)
-                .clipShape(RoundedRectangle(cornerRadius: 30))
-                .padding()
             }
-        }
-        .onAppear {
-            visionManager.setupCamera()
-            
-            DispatchQueue.global(qos: .userInitiated).async {
-                visionManager.captureSession.startRunning()
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .navigationTitle("WhatIsThat")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showCamera = true
+                    } label: {
+                        Image(systemName: "camera.fill")
+                    }
+                }
+            }
+            .fullScreenCover(isPresented: $showCamera) {
+                CameraView(capturedImage: $capturedImage)
+                    .ignoresSafeArea()
             }
         }
     }
